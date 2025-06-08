@@ -1,6 +1,8 @@
 package com.example.nativeimageprocessing
 
 object Constants {
+    const val EXTRA_IMAGE_URI = "extra_image_uri"
+    const val RESULT_IMAGE_URI = "result_image_uri"
     const val GRAYSCALE_ID = "grayscale"
     const val INVERT_ID = "invert"
     const val SEPIA_ID = "sepia"

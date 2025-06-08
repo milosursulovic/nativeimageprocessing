@@ -1,12 +1,13 @@
 package com.example.nativeimageprocessing.activities
 
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
-import android.widget.SeekBar
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.createBitmap
 import androidx.core.net.toUri
@@ -16,6 +17,8 @@ import com.example.nativeimageprocessing.FilterOption
 import com.example.nativeimageprocessing.R
 import com.example.nativeimageprocessing.adapters.FilterOptionsAdapter
 import com.example.nativeimageprocessing.databinding.ActivityEditBinding
+import java.io.File
+import java.io.FileOutputStream
 
 class EditActivity : AppCompatActivity() {
 
@@ -28,21 +31,6 @@ class EditActivity : AppCompatActivity() {
     private external fun convertToGrayscale(pixels: IntArray, width: Int, height: Int): IntArray
     private external fun invertColors(pixels: IntArray, width: Int, height: Int): IntArray
     private external fun sepia(pixels: IntArray, width: Int, height: Int): IntArray
-    private external fun brightness(
-        pixels: IntArray,
-        width: Int,
-        height: Int,
-        brightnessValue: Int
-    ): IntArray
-
-    private external fun contrast(
-        pixels: IntArray,
-        width: Int,
-        height: Int,
-        contrastValue: Int
-    ): IntArray
-
-    private var activeSeekBarFilter: String? = null
 
     private lateinit var binding: ActivityEditBinding
     private lateinit var originalBitmap: Bitmap
@@ -50,24 +38,26 @@ class EditActivity : AppCompatActivity() {
 
     private lateinit var tempBitmap: Bitmap
 
-    private val filterOptions = listOf(
-        FilterOption(Constants.GRAYSCALE_ID, getString(R.string.grayscale)),
-        FilterOption(Constants.INVERT_ID, getString(R.string.invert_colors)),
-        FilterOption(Constants.SEPIA_ID, getString(R.string.sepia)),
-        FilterOption(Constants.BRIGHTNESS_ID, getString(R.string.brightness)),
-        FilterOption(Constants.CONTRAST_ID, getString(R.string.contrast)),
-        FilterOption(Constants.BLUR_ID, getString(R.string.blur)),
-        FilterOption(Constants.EDGE_ID, getString(R.string.edge_detection)),
-        FilterOption(Constants.ROTATE_90_ID, getString(R.string.rotate_90)),
-        FilterOption(Constants.ROTATE_180_ID, getString(R.string.rotate_180)),
-        FilterOption(Constants.ROTATE_270_ID, getString(R.string.rotate_270)),
-        FilterOption(Constants.CROP_ID, getString(R.string.crop))
-    )
+    private lateinit var filterOptions: List<FilterOption>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityEditBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        filterOptions = listOf(
+            FilterOption(Constants.GRAYSCALE_ID, getString(R.string.grayscale)),
+            FilterOption(Constants.INVERT_ID, getString(R.string.invert_colors)),
+            FilterOption(Constants.SEPIA_ID, getString(R.string.sepia)),
+            FilterOption(Constants.BRIGHTNESS_ID, getString(R.string.brightness)),
+            FilterOption(Constants.CONTRAST_ID, getString(R.string.contrast)),
+            FilterOption(Constants.BLUR_ID, getString(R.string.blur)),
+            FilterOption(Constants.EDGE_ID, getString(R.string.edge_detection)),
+            FilterOption(Constants.ROTATE_90_ID, getString(R.string.rotate_90)),
+            FilterOption(Constants.ROTATE_180_ID, getString(R.string.rotate_180)),
+            FilterOption(Constants.ROTATE_270_ID, getString(R.string.rotate_270)),
+            FilterOption(Constants.CROP_ID, getString(R.string.crop))
+        )
 
         val imageUriString = intent.getStringExtra("imageUri")
         if (imageUriString == null) {
@@ -92,45 +82,16 @@ class EditActivity : AppCompatActivity() {
         binding.btnSave.setOnClickListener {
             currentBitmap = tempBitmap.copy(Bitmap.Config.ARGB_8888, true)
             binding.imageView.setImageBitmap(currentBitmap)
-            resetUIAfterFilterApplied()
         }
 
         binding.btnCancel.setOnClickListener {
             binding.imageView.setImageBitmap(currentBitmap) // revert to currentBitmap (unchanged)
-            resetUIAfterFilterApplied()
         }
 
 
         binding.btnExport.setOnClickListener {
             exportImageToGallery(currentBitmap)
         }
-    }
-
-    private fun resetUIAfterFilterApplied() {
-        binding.actionButtonsLayout.visibility = View.GONE
-
-        when (activeSeekBarFilter) {
-            Constants.BRIGHTNESS_ID -> {
-                binding.seekBar.visibility = View.GONE
-                binding.seekBar.setOnSeekBarChangeListener(null)
-                binding.seekBar.progress = 100
-            }
-
-            Constants.CONTRAST_ID -> {
-                binding.seekBar.visibility = View.GONE
-                binding.seekBar.setOnSeekBarChangeListener(null)
-                binding.seekBar.max = 510
-                binding.seekBar.progress = 255
-            }
-
-            else -> {
-                binding.seekBar.visibility = View.GONE
-                binding.seekBar.setOnSeekBarChangeListener(null)
-                binding.seekBar.progress = 100
-            }
-        }
-
-        activeSeekBarFilter = null
     }
 
     private fun loadBitmapFromUri(uri: Uri): Bitmap {
@@ -145,100 +106,114 @@ class EditActivity : AppCompatActivity() {
         val pixels = IntArray(width * height)
         currentBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
 
-        when (filterId) {
+        val newPixels = when (filterId) {
+            Constants.GRAYSCALE_ID -> convertToGrayscale(pixels, width, height)
+            Constants.INVERT_ID -> invertColors(pixels, width, height)
+            Constants.SEPIA_ID -> sepia(pixels, width, height)
             Constants.BRIGHTNESS_ID -> {
-
-                activeSeekBarFilter = Constants.BRIGHTNESS_ID
-
-                binding.seekBar.visibility = View.VISIBLE
-
-                val brightnessValue = binding.seekBar.progress
-                val newPixels = brightness(pixels, width, height, brightnessValue)
-                tempBitmap = createBitmap(width, height)
-                tempBitmap.setPixels(newPixels, 0, width, 0, 0, width, height)
-                binding.imageView.setImageBitmap(tempBitmap)
-                binding.actionButtonsLayout.visibility = View.VISIBLE
-
-                // Add listener for SeekBar changes
-                binding.seekBar.setOnSeekBarChangeListener(object :
-                    SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(
-                        seekBar: SeekBar?,
-                        progress: Int,
-                        fromUser: Boolean
-                    ) {
-                        val updatedPixels = brightness(pixels, width, height, progress)
-                        tempBitmap.setPixels(updatedPixels, 0, width, 0, 0, width, height)
-                        binding.imageView.setImageBitmap(tempBitmap)
-                    }
-
-                    override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-                    override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-                })
+                openBrightnessActivity()
+                return
             }
 
             Constants.CONTRAST_ID -> {
+                openContrastActivity()
+                return
+            }
 
-                activeSeekBarFilter = Constants.CONTRAST_ID
-
-                binding.seekBar.visibility = View.VISIBLE
-
-                binding.seekBar.max = 510 // to map from -255 to +255, for example
-                binding.seekBar.progress = 255 // default (no change)
-
-                val contrastValue = binding.seekBar.progress - 255 // map 0-510 to -255 to +255
-                val newPixels = contrast(pixels, width, height, contrastValue)
-                tempBitmap = createBitmap(width, height)
-                tempBitmap.setPixels(newPixels, 0, width, 0, 0, width, height)
-                binding.imageView.setImageBitmap(tempBitmap)
-                binding.actionButtonsLayout.visibility = View.VISIBLE
-
-                binding.seekBar.setOnSeekBarChangeListener(object :
-                    SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(
-                        seekBar: SeekBar?,
-                        progress: Int,
-                        fromUser: Boolean
-                    ) {
-                        val contrastVal = progress - 255
-                        val updatedPixels = contrast(pixels, width, height, contrastVal)
-                        tempBitmap.setPixels(updatedPixels, 0, width, 0, 0, width, height)
-                        binding.imageView.setImageBitmap(tempBitmap)
-                    }
-
-                    override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-                    override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-                })
+            Constants.BLUR_ID -> {
+                openBlurActivity()
+                return
             }
 
             else -> {
-
-                binding.seekBar.visibility = View.GONE
-
-                binding.seekBar.setOnSeekBarChangeListener(null)
-
-                val newPixels = when (filterId) {
-                    Constants.GRAYSCALE_ID -> convertToGrayscale(pixels, width, height)
-                    Constants.INVERT_ID -> invertColors(pixels, width, height)
-                    Constants.SEPIA_ID -> sepia(pixels, width, height)
-                    // other filters ...
-                    else -> {
-                        Toast.makeText(
-                            this,
-                            getString(R.string.filter_not_implemented, filterId), Toast.LENGTH_SHORT
-                        )
-                            .show()
-                        return
-                    }
-                }
-
-                tempBitmap = createBitmap(width, height)
-                tempBitmap.setPixels(newPixels, 0, width, 0, 0, width, height)
-
-                binding.imageView.setImageBitmap(tempBitmap)
-                binding.actionButtonsLayout.visibility = View.VISIBLE
+                Toast.makeText(
+                    this,
+                    getString(R.string.filter_not_implemented, filterId), Toast.LENGTH_SHORT
+                )
+                    .show()
+                return
             }
         }
+
+        tempBitmap = createBitmap(width, height)
+        tempBitmap.setPixels(newPixels, 0, width, 0, 0, width, height)
+
+        binding.imageView.setImageBitmap(tempBitmap)
+        binding.actionButtonsLayout.visibility = View.VISIBLE
+    }
+
+    private val brightnessLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val imageUriString = result.data?.getStringExtra(Constants.RESULT_IMAGE_URI)
+            if (imageUriString != null) {
+                val newUri = imageUriString.toUri()
+                val bitmap = loadBitmapFromUri(newUri)
+                currentBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+                binding.imageView.setImageBitmap(currentBitmap)
+            }
+        }
+    }
+
+    private val contrastLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val imageUriString = result.data?.getStringExtra(Constants.RESULT_IMAGE_URI)
+            if (imageUriString != null) {
+                val newUri = imageUriString.toUri()
+                val bitmap = loadBitmapFromUri(newUri)
+                currentBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+                binding.imageView.setImageBitmap(currentBitmap)
+            }
+        }
+    }
+
+    private val blurLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val imageUriString = result.data?.getStringExtra(Constants.RESULT_IMAGE_URI)
+            if (imageUriString != null) {
+                val newUri = imageUriString.toUri()
+                val bitmap = loadBitmapFromUri(newUri)
+                currentBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+                binding.imageView.setImageBitmap(currentBitmap)
+            }
+        }
+    }
+
+    private fun openBrightnessActivity() {
+        val intent = Intent(this, BrightnessActivity::class.java)
+        // pass current image uri - you may want to cache currentBitmap to a file first
+        val uri = saveBitmapToCache(currentBitmap)
+        intent.putExtra(Constants.EXTRA_IMAGE_URI, uri.toString())
+        brightnessLauncher.launch(intent)
+    }
+
+    private fun openContrastActivity() {
+        val intent = Intent(this, ContrastActivity::class.java)
+        val uri = saveBitmapToCache(currentBitmap)
+        intent.putExtra(Constants.EXTRA_IMAGE_URI, uri.toString())
+        contrastLauncher.launch(intent)
+    }
+
+    private fun openBlurActivity() {
+        val intent = Intent(this, BlurActivity::class.java)
+        val uri = saveBitmapToCache(currentBitmap)
+        intent.putExtra(Constants.EXTRA_IMAGE_URI, uri.toString())
+        blurLauncher.launch(intent)
+    }
+
+    private fun saveBitmapToCache(bitmap: Bitmap): Uri {
+        val cachePath = File(cacheDir, "images")
+        cachePath.mkdirs()
+        val file = File(cachePath, "temp_image.png")
+        FileOutputStream(file).use { outStream ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, outStream)
+        }
+        return Uri.fromFile(file)
     }
 
 

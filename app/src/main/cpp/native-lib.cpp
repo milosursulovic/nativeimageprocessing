@@ -105,12 +105,12 @@ Java_com_example_nativeimageprocessing_activities_EditActivity_sepia(JNIEnv *env
 
 extern "C"
 JNIEXPORT jintArray JNICALL
-Java_com_example_nativeimageprocessing_activities_EditActivity_brightness(JNIEnv *env,
-                                                                          jobject /* this */,
-                                                                          jintArray pixels,
-                                                                          jint width,
-                                                                          jint height,
-                                                                          jint brightnessValue) {
+Java_com_example_nativeimageprocessing_activities_BrightnessActivity_brightness(JNIEnv *env,
+                                                                                jobject /* this */,
+                                                                                jintArray pixels,
+                                                                                jint width,
+                                                                                jint height,
+                                                                                jint brightnessValue) {
     jint *pixelArray = env->GetIntArrayElements(pixels, nullptr);
     jint length = width * height;
     std::vector<jint> result(length);
@@ -141,12 +141,12 @@ Java_com_example_nativeimageprocessing_activities_EditActivity_brightness(JNIEnv
 
 extern "C"
 JNIEXPORT jintArray JNICALL
-Java_com_example_nativeimageprocessing_activities_EditActivity_contrast(JNIEnv *env,
-                                                                        jobject /* this */,
-                                                                        jintArray pixels,
-                                                                        jint width,
-                                                                        jint height,
-                                                                        jint contrastValue) {
+Java_com_example_nativeimageprocessing_activities_ContrastActivity_contrast(JNIEnv *env,
+                                                                            jobject /* this */,
+                                                                            jintArray pixels,
+                                                                            jint width,
+                                                                            jint height,
+                                                                            jint contrastValue) {
     jint *pixelArray = env->GetIntArrayElements(pixels, nullptr);
     jint length = width * height;
     std::vector<jint> result(length);
@@ -182,5 +182,61 @@ Java_com_example_nativeimageprocessing_activities_EditActivity_contrast(JNIEnv *
 
     jintArray resultArray = env->NewIntArray(length);
     env->SetIntArrayRegion(resultArray, 0, length, result.data());
+    return resultArray;
+}
+
+extern "C"
+JNIEXPORT jintArray JNICALL
+Java_com_example_nativeimageprocessing_activities_BlurActivity_blur(JNIEnv *env,
+                                                                    jobject,
+                                                                    jintArray pixels,
+                                                                    jint width,
+                                                                    jint height,
+                                                                    jint radius) {
+    if (radius < 1) radius = 1;
+    if (radius > 25) radius = 25; // Prevent excessive lag
+
+    jint *src = env->GetIntArrayElements(pixels, nullptr);
+    jint size = width * height;
+    std::vector<jint> result(size);
+
+    int wm = width - 1;
+    int hm = height - 1;
+    int div = radius * 2 + 1;
+
+    std::vector<int> r(size), g(size), b(size);
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            int rsum = 0, gsum = 0, bsum = 0, count = 0;
+
+            for (int ky = -radius; ky <= radius; ky++) {
+                int py = std::min(hm, std::max(0, y + ky));
+                for (int kx = -radius; kx <= radius; kx++) {
+                    int px = std::min(wm, std::max(0, x + kx));
+                    int idx = py * width + px;
+
+                    int color = src[idx];
+                    rsum += (color >> 16) & 0xFF;
+                    gsum += (color >> 8) & 0xFF;
+                    bsum += (color) & 0xFF;
+                    count++;
+                }
+            }
+
+            int dstIdx = y * width + x;
+            int alpha = (src[dstIdx] >> 24) & 0xFF;
+            r[dstIdx] = rsum / count;
+            g[dstIdx] = gsum / count;
+            b[dstIdx] = bsum / count;
+
+            result[dstIdx] = (alpha << 24) | (r[dstIdx] << 16) | (g[dstIdx] << 8) | b[dstIdx];
+        }
+    }
+
+    env->ReleaseIntArrayElements(pixels, src, 0);
+
+    jintArray resultArray = env->NewIntArray(size);
+    env->SetIntArrayRegion(resultArray, 0, size, result.data());
     return resultArray;
 }

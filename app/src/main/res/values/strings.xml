@@ -27,4 +27,5 @@
     <string name="permissions_denied_cannot_take_or_pick_photos">Permissions denied. Cannot take or pick photos.</string>
     <string name="camera_cancelled">Camera cancelled</string>
     <string name="please_grant_permissions_first">Please grant permissions first</string>
+    <string name="no_image_uri_passed">No image URI passed</string>
 </resources>

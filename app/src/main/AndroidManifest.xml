@@ -41,6 +41,9 @@
         </activity>
 
         <activity android:name=".activities.EditActivity" />
+        <activity android:name=".activities.BrightnessActivity" />
+        <activity android:name=".activities.ContrastActivity" />
+        <activity android:name=".activities.BlurActivity" />
 
     </application>
 </manifest>
