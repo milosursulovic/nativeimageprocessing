@@ -33,9 +33,12 @@ class EditActivity : AppCompatActivity() {
     private external fun invertColors(pixels: IntArray, width: Int, height: Int): IntArray
     private external fun sepia(pixels: IntArray, width: Int, height: Int): IntArray
     private external fun edgeDetect(pixels: IntArray, width: Int, height: Int): IntArray
-    private external fun rotate90(pixels: IntArray, width: Int, height: Int): IntArray
-    private external fun rotate180(pixels: IntArray, width: Int, height: Int): IntArray
-    private external fun rotate270(pixels: IntArray, width: Int, height: Int): IntArray
+    private external fun rotate(
+        pixels: IntArray,
+        width: Int,
+        height: Int,
+        rotationDegrees: Int
+    ): IntArray
 
     private lateinit var binding: ActivityEditBinding
     private lateinit var originalBitmap: Bitmap
@@ -86,6 +89,7 @@ class EditActivity : AppCompatActivity() {
 
         binding.btnSave.setOnClickListener {
             currentBitmap = tempBitmap.copy(Bitmap.Config.ARGB_8888, true)
+            tempBitmap.recycle()
             binding.imageView.setImageBitmap(currentBitmap)
             binding.actionButtonsLayout.visibility = View.GONE
         }
@@ -123,50 +127,60 @@ class EditActivity : AppCompatActivity() {
                 newWidth = width
                 newHeight = height
             }
+
             Constants.INVERT_ID -> {
                 newPixels = invertColors(pixels, width, height)
                 newWidth = width
                 newHeight = height
             }
+
             Constants.SEPIA_ID -> {
                 newPixels = sepia(pixels, width, height)
                 newWidth = width
                 newHeight = height
             }
+
             Constants.BRIGHTNESS_ID -> {
                 openImageEditingActivity(BrightnessActivity::class.java, activityLauncher)
                 return
             }
+
             Constants.CONTRAST_ID -> {
                 openImageEditingActivity(ContrastActivity::class.java, activityLauncher)
                 return
             }
+
             Constants.BLUR_ID -> {
                 openImageEditingActivity(BlurActivity::class.java, activityLauncher)
                 return
             }
+
             Constants.EDGE_ID -> {
                 newPixels = edgeDetect(pixels, width, height)
                 newWidth = width
                 newHeight = height
             }
+
             Constants.ROTATE_90_ID -> {
-                newPixels = rotate90(pixels, width, height)
+                newPixels = rotate(pixels, width, height, 90)
                 // swap width & height for 90°
                 newWidth = height
                 newHeight = width
             }
+
             Constants.ROTATE_180_ID -> {
-                newPixels = rotate180(pixels, width, height)
+                newPixels = rotate(pixels, width, height, 180)
                 newWidth = width
                 newHeight = height
             }
+
             Constants.ROTATE_270_ID -> {
-                newPixels = rotate270(pixels, width, height)
+                newPixels = rotate(pixels, width, height, 270)
                 // swap width & height for 270°
                 newWidth = height
                 newHeight = width
             }
+
             else -> {
                 Toast.makeText(
                     this,

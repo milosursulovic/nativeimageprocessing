@@ -1,11 +1,42 @@
 #include <jni.h>
 #include <vector>
-#include <math.h>
+#include <cmath>
+#include <algorithm>
 #include <stdint.h>
 
-#define RED(pixel) ((pixel >> 16) & 0xFF)
-#define GREEN(pixel) ((pixel >> 8) & 0xFF)
-#define BLUE(pixel) (pixel & 0xFF)
+inline int getAlpha(jint color) { return (color >> 24) & 0xFF; }
+
+inline int getRed(jint color) { return (color >> 16) & 0xFF; }
+
+inline int getGreen(jint color) { return (color >> 8) & 0xFF; }
+
+inline int getBlue(jint color) { return color & 0xFF; }
+
+inline jint composeColor(int alpha, int red, int green, int blue) {
+    return (alpha << 24) | (red << 16) | (green << 8) | blue;
+}
+
+inline int clamp(int val, int minVal = 0, int maxVal = 255) {
+    return std::min(maxVal, std::max(minVal, val));
+}
+
+// Helper function to process image pixels with a given pixel processing lambda
+template<typename Func>
+jintArray processPixels(JNIEnv *env, jintArray pixels, jint width, jint height, Func pixelFunc) {
+    jint length = width * height;
+    jint *pixelArray = env->GetIntArrayElements(pixels, nullptr);
+    std::vector<jint> result(length);
+
+    for (int i = 0; i < length; ++i) {
+        result[i] = pixelFunc(pixelArray[i]);
+    }
+
+    env->ReleaseIntArrayElements(pixels, pixelArray, 0);
+
+    jintArray resultArray = env->NewIntArray(length);
+    env->SetIntArrayRegion(resultArray, 0, length, result.data());
+    return resultArray;
+}
 
 extern "C"
 JNIEXPORT jintArray JNICALL
@@ -14,29 +45,15 @@ Java_com_example_nativeimageprocessing_activities_EditActivity_convertToGrayscal
                                                                                   jintArray pixels,
                                                                                   jint width,
                                                                                   jint height) {
-    jint *pixelArray = env->GetIntArrayElements(pixels, nullptr);
-    jint length = width * height;
-
-    std::vector<jint> result(length);
-
-    for (int i = 0; i < length; ++i) {
-        jint color = pixelArray[i];
-
-        int alpha = (color >> 24) & 0xff;
-        int red = (color >> 16) & 0xff;
-        int green = (color >> 8) & 0xff;
-        int blue = (color) & 0xff;
+    return processPixels(env, pixels, width, height, [](jint color) {
+        int alpha = getAlpha(color);
+        int red = getRed(color);
+        int green = getGreen(color);
+        int blue = getBlue(color);
 
         int gray = (red + green + blue) / 3;
-
-        result[i] = (alpha << 24) | (gray << 16) | (gray << 8) | gray;
-    }
-
-    env->ReleaseIntArrayElements(pixels, pixelArray, 0);
-
-    jintArray resultArray = env->NewIntArray(length);
-    env->SetIntArrayRegion(resultArray, 0, length, result.data());
-    return resultArray;
+        return composeColor(alpha, gray, gray, gray);
+    });
 }
 
 extern "C"
@@ -46,30 +63,13 @@ Java_com_example_nativeimageprocessing_activities_EditActivity_invertColors(JNIE
                                                                             jintArray pixels,
                                                                             jint width,
                                                                             jint height) {
-    jint *pixelArray = env->GetIntArrayElements(pixels, nullptr);
-    jint length = width * height;
-    std::vector<jint> result(length);
-
-    for (int i = 0; i < length; ++i) {
-        jint color = pixelArray[i];
-
-        int alpha = (color >> 24) & 0xff;
-        int red = (color >> 16) & 0xff;
-        int green = (color >> 8) & 0xff;
-        int blue = (color) & 0xff;
-
-        red = 255 - red;
-        green = 255 - green;
-        blue = 255 - blue;
-
-        result[i] = (alpha << 24) | (red << 16) | (green << 8) | blue;
-    }
-
-    env->ReleaseIntArrayElements(pixels, pixelArray, 0);
-
-    jintArray resultArray = env->NewIntArray(length);
-    env->SetIntArrayRegion(resultArray, 0, length, result.data());
-    return resultArray;
+    return processPixels(env, pixels, width, height, [](jint color) {
+        int alpha = getAlpha(color);
+        int red = 255 - getRed(color);
+        int green = 255 - getGreen(color);
+        int blue = 255 - getBlue(color);
+        return composeColor(alpha, red, green, blue);
+    });
 }
 
 extern "C"
@@ -78,35 +78,22 @@ Java_com_example_nativeimageprocessing_activities_EditActivity_sepia(JNIEnv *env
                                                                      jobject /* this */,
                                                                      jintArray pixels, jint width,
                                                                      jint height) {
-    jint *pixelArray = env->GetIntArrayElements(pixels, nullptr);
-    jint length = width * height;
-    std::vector<jint> result(length);
+    return processPixels(env, pixels, width, height, [](jint color) {
+        int alpha = getAlpha(color);
+        int red = getRed(color);
+        int green = getGreen(color);
+        int blue = getBlue(color);
 
-    for (int i = 0; i < length; ++i) {
-        jint color = pixelArray[i];
+        int tr = static_cast<int>(0.393 * red + 0.769 * green + 0.189 * blue);
+        int tg = static_cast<int>(0.349 * red + 0.686 * green + 0.168 * blue);
+        int tb = static_cast<int>(0.272 * red + 0.534 * green + 0.131 * blue);
 
-        int alpha = (color >> 24) & 0xff;
-        int red = (color >> 16) & 0xff;
-        int green = (color >> 8) & 0xff;
-        int blue = (color) & 0xff;
+        red = clamp(tr);
+        green = clamp(tg);
+        blue = clamp(tb);
 
-        int tr = (int) (0.393 * red + 0.769 * green + 0.189 * blue);
-        int tg = (int) (0.349 * red + 0.686 * green + 0.168 * blue);
-        int tb = (int) (0.272 * red + 0.534 * green + 0.131 * blue);
-
-        // Clamp values to [0,255]
-        red = std::min(255, tr);
-        green = std::min(255, tg);
-        blue = std::min(255, tb);
-
-        result[i] = (alpha << 24) | (red << 16) | (green << 8) | blue;
-    }
-
-    env->ReleaseIntArrayElements(pixels, pixelArray, 0);
-
-    jintArray resultArray = env->NewIntArray(length);
-    env->SetIntArrayRegion(resultArray, 0, length, result.data());
-    return resultArray;
+        return composeColor(alpha, red, green, blue);
+    });
 }
 
 extern "C"
@@ -117,32 +104,15 @@ Java_com_example_nativeimageprocessing_activities_BrightnessActivity_brightness(
                                                                                 jint width,
                                                                                 jint height,
                                                                                 jint brightnessValue) {
-    jint *pixelArray = env->GetIntArrayElements(pixels, nullptr);
-    jint length = width * height;
-    std::vector<jint> result(length);
+    float brightnessFactor = brightnessValue / 100.0f;  // 0.0 to 2.0
 
-    float brightnessFactor = brightnessValue / 100.0f;  // from 0.0 to 2.0
-
-    for (int i = 0; i < length; ++i) {
-        jint color = pixelArray[i];
-
-        int alpha = (color >> 24) & 0xff;
-        int red = (color >> 16) & 0xff;
-        int green = (color >> 8) & 0xff;
-        int blue = (color) & 0xff;
-
-        red = std::min(255, int(red * brightnessFactor));
-        green = std::min(255, int(green * brightnessFactor));
-        blue = std::min(255, int(blue * brightnessFactor));
-
-        result[i] = (alpha << 24) | (red << 16) | (green << 8) | blue;
-    }
-
-    env->ReleaseIntArrayElements(pixels, pixelArray, 0);
-
-    jintArray resultArray = env->NewIntArray(length);
-    env->SetIntArrayRegion(resultArray, 0, length, result.data());
-    return resultArray;
+    return processPixels(env, pixels, width, height, [brightnessFactor](jint color) {
+        int alpha = getAlpha(color);
+        int red = clamp(static_cast<int>(getRed(color) * brightnessFactor));
+        int green = clamp(static_cast<int>(getGreen(color) * brightnessFactor));
+        int blue = clamp(static_cast<int>(getBlue(color) * brightnessFactor));
+        return composeColor(alpha, red, green, blue);
+    });
 }
 
 extern "C"
@@ -153,64 +123,37 @@ Java_com_example_nativeimageprocessing_activities_ContrastActivity_contrast(JNIE
                                                                             jint width,
                                                                             jint height,
                                                                             jint contrastValue) {
-    jint *pixelArray = env->GetIntArrayElements(pixels, nullptr);
-    jint length = width * height;
-    std::vector<jint> result(length);
-
-    // Clamp contrastValue to [-255, 255] if needed
-    int contrast = contrastValue;
-    if (contrast < -255) contrast = -255;
-    if (contrast > 255) contrast = 255;
-
+    int contrast = std::clamp(contrastValue, -255, 255);
     float factor = (259.0f * (contrast + 255)) / (255.0f * (259 - contrast));
 
-    for (int i = 0; i < length; ++i) {
-        jint color = pixelArray[i];
+    return processPixels(env, pixels, width, height, [factor](jint color) {
+        int alpha = getAlpha(color);
 
-        int alpha = (color >> 24) & 0xff;
-        int red = (color >> 16) & 0xff;
-        int green = (color >> 8) & 0xff;
-        int blue = (color) & 0xff;
+        int red = clamp(static_cast<int>(factor * (getRed(color) - 128) + 128));
+        int green = clamp(static_cast<int>(factor * (getGreen(color) - 128) + 128));
+        int blue = clamp(static_cast<int>(factor * (getBlue(color) - 128) + 128));
 
-        red = static_cast<int>(factor * (red - 128) + 128);
-        green = static_cast<int>(factor * (green - 128) + 128);
-        blue = static_cast<int>(factor * (blue - 128) + 128);
-
-        // Clamp the values to [0, 255]
-        red = std::min(255, std::max(0, red));
-        green = std::min(255, std::max(0, green));
-        blue = std::min(255, std::max(0, blue));
-
-        result[i] = (alpha << 24) | (red << 16) | (green << 8) | blue;
-    }
-
-    env->ReleaseIntArrayElements(pixels, pixelArray, 0);
-
-    jintArray resultArray = env->NewIntArray(length);
-    env->SetIntArrayRegion(resultArray, 0, length, result.data());
-    return resultArray;
+        return composeColor(alpha, red, green, blue);
+    });
 }
 
 extern "C"
 JNIEXPORT jintArray JNICALL
 Java_com_example_nativeimageprocessing_activities_BlurActivity_blur(JNIEnv *env,
-                                                                    jobject,
+                                                                    jobject /* this */,
                                                                     jintArray pixels,
                                                                     jint width,
                                                                     jint height,
                                                                     jint radius) {
     if (radius < 1) radius = 1;
-    if (radius > 25) radius = 25; // Prevent excessive lag
+    if (radius > 25) radius = 25; // Limit radius
 
     jint *src = env->GetIntArrayElements(pixels, nullptr);
-    jint size = width * height;
+    int size = width * height;
     std::vector<jint> result(size);
 
     int wm = width - 1;
     int hm = height - 1;
-    int div = radius * 2 + 1;
-
-    std::vector<int> r(size), g(size), b(size);
 
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
@@ -223,20 +166,20 @@ Java_com_example_nativeimageprocessing_activities_BlurActivity_blur(JNIEnv *env,
                     int idx = py * width + px;
 
                     int color = src[idx];
-                    rsum += (color >> 16) & 0xFF;
-                    gsum += (color >> 8) & 0xFF;
-                    bsum += (color) & 0xFF;
+                    rsum += getRed(color);
+                    gsum += getGreen(color);
+                    bsum += getBlue(color);
                     count++;
                 }
             }
 
-            int dstIdx = y * width + x;
-            int alpha = (src[dstIdx] >> 24) & 0xFF;
-            r[dstIdx] = rsum / count;
-            g[dstIdx] = gsum / count;
-            b[dstIdx] = bsum / count;
+            int idx = y * width + x;
+            int alpha = getAlpha(src[idx]);
+            int red = rsum / count;
+            int green = gsum / count;
+            int blue = bsum / count;
 
-            result[dstIdx] = (alpha << 24) | (r[dstIdx] << 16) | (g[dstIdx] << 8) | b[dstIdx];
+            result[idx] = composeColor(alpha, red, green, blue);
         }
     }
 
@@ -250,28 +193,27 @@ Java_com_example_nativeimageprocessing_activities_BlurActivity_blur(JNIEnv *env,
 extern "C"
 JNIEXPORT jintArray JNICALL
 Java_com_example_nativeimageprocessing_activities_EditActivity_edgeDetect(
-        JNIEnv *env, jobject thiz, jintArray pixels, jint width, jint height) {
+        JNIEnv *env, jobject /* thiz */, jintArray pixels, jint width, jint height) {
 
     jint *inputPixels = env->GetIntArrayElements(pixels, nullptr);
     jintArray result = env->NewIntArray(width * height);
     jint *outputPixels = new jint[width * height];
 
-    // Convert to grayscale first
-    uint8_t *gray = new uint8_t[width * height];
+    // Convert to grayscale (luma)
+    std::vector<uint8_t> gray(width * height);
     for (int i = 0; i < width * height; i++) {
-        int r = RED(inputPixels[i]);
-        int g = GREEN(inputPixels[i]);
-        int b = BLUE(inputPixels[i]);
-        gray[i] = (uint8_t) (0.3 * r + 0.59 * g + 0.11 * b); // Luma conversion
+        gray[i] = static_cast<uint8_t>(0.3 * getRed(inputPixels[i]) +
+                                       0.59 * getGreen(inputPixels[i]) +
+                                       0.11 * getBlue(inputPixels[i]));
     }
 
     // Sobel kernels
-    int gx[3][3] = {
+    const int gx[3][3] = {
             {-1, 0, 1},
             {-2, 0, 2},
             {-1, 0, 1}
     };
-    int gy[3][3] = {
+    const int gy[3][3] = {
             {-1, -2, -1},
             {0,  0,  0},
             {1,  2,  1}
@@ -285,21 +227,19 @@ Java_com_example_nativeimageprocessing_activities_EditActivity_edgeDetect(
 
             for (int ky = -1; ky <= 1; ky++) {
                 for (int kx = -1; kx <= 1; kx++) {
-                    int val = gray[(y + ky) * width + (x + kx)];
-                    sumX += gx[ky + 1][kx + 1] * val;
-                    sumY += gy[ky + 1][kx + 1] * val;
+                    int pixel = gray[(y + ky) * width + (x + kx)];
+                    sumX += pixel * gx[ky + 1][kx + 1];
+                    sumY += pixel * gy[ky + 1][kx + 1];
                 }
             }
 
-            int magnitude = (int) sqrt(sumX * sumX + sumY * sumY);
-            if (magnitude > 255) magnitude = 255;
-
-            int color = (0xFF << 24) | (magnitude << 16) | (magnitude << 8) | magnitude;
-            outputPixels[y * width + x] = color;
+            int magnitude = clamp(static_cast<int>(std::sqrt(sumX * sumX + sumY * sumY)));
+            int alpha = getAlpha(inputPixels[y * width + x]);
+            outputPixels[y * width + x] = composeColor(alpha, magnitude, magnitude, magnitude);
         }
     }
 
-    // Fill borders with black
+    // Fill borders with black or copy
     for (int x = 0; x < width; x++) {
         outputPixels[x] = 0xFF000000;
         outputPixels[(height - 1) * width + x] = 0xFF000000;
@@ -309,10 +249,8 @@ Java_com_example_nativeimageprocessing_activities_EditActivity_edgeDetect(
         outputPixels[y * width + (width - 1)] = 0xFF000000;
     }
 
-    env->SetIntArrayRegion(result, 0, width * height, outputPixels);
     env->ReleaseIntArrayElements(pixels, inputPixels, 0);
-
-    delete[] gray;
+    env->SetIntArrayRegion(result, 0, width * height, outputPixels);
     delete[] outputPixels;
 
     return result;
@@ -320,87 +258,42 @@ Java_com_example_nativeimageprocessing_activities_EditActivity_edgeDetect(
 
 extern "C"
 JNIEXPORT jintArray JNICALL
-Java_com_example_nativeimageprocessing_activities_EditActivity_rotate90(JNIEnv *env,
-                                                                        jobject /* this */,
-                                                                        jintArray pixels,
-                                                                        jint width,
-                                                                        jint height) {
-    jint *pixelArray = env->GetIntArrayElements(pixels, nullptr);
-    jint outputWidth = height;
-    jint outputHeight = width;
-    jint length = width * height;
+Java_com_example_nativeimageprocessing_activities_EditActivity_rotate(
+        JNIEnv *env, jobject /* this */, jintArray pixels, jint width, jint height,
+        jint rotationDegrees) {
+    jint *inputPixels = env->GetIntArrayElements(pixels, nullptr);
+    jintArray result = env->NewIntArray(width * height);
+    std::vector<jint> outputPixels(width * height);
 
-    std::vector<jint> result(outputWidth * outputHeight);
+    switch (rotationDegrees) {
+        case 90:
+            for (int y = 0; y < height; ++y)
+                for (int x = 0; x < width; ++x)
+                    outputPixels[x * height + (height - y - 1)] = inputPixels[y * width + x];
+            break;
 
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            // pixel at (x,y) moves to (y, width - 1 - x)
-            int newX = y;
-            int newY = width - 1 - x;
-            result[newY * outputWidth + newX] = pixelArray[y * width + x];
-        }
+        case 180:
+            for (int y = 0; y < height; ++y)
+                for (int x = 0; x < width; ++x)
+                    outputPixels[(height - y - 1) * width + (width - x - 1)] = inputPixels[
+                            y * width + x];
+            break;
+
+        case 270:
+            for (int y = 0; y < height; ++y)
+                for (int x = 0; x < width; ++x)
+                    outputPixels[(width - x - 1) * height + y] = inputPixels[y * width + x];
+            break;
+
+        default:
+            // If invalid angle, just copy input to output without change
+            for (int i = 0; i < width * height; ++i)
+                outputPixels[i] = inputPixels[i];
+            break;
     }
 
-    env->ReleaseIntArrayElements(pixels, pixelArray, 0);
+    env->ReleaseIntArrayElements(pixels, inputPixels, 0);
+    env->SetIntArrayRegion(result, 0, width * height, outputPixels.data());
 
-    jintArray resultArray = env->NewIntArray(outputWidth * outputHeight);
-    env->SetIntArrayRegion(resultArray, 0, outputWidth * outputHeight, result.data());
-    return resultArray;
-}
-
-extern "C"
-JNIEXPORT jintArray JNICALL
-Java_com_example_nativeimageprocessing_activities_EditActivity_rotate180(JNIEnv *env,
-                                                                         jobject /* this */,
-                                                                         jintArray pixels,
-                                                                         jint width,
-                                                                         jint height) {
-    jint *pixelArray = env->GetIntArrayElements(pixels, nullptr);
-    int length = width * height;
-
-    std::vector<jint> result(length);
-
-    // Rotate 180 degrees:
-    // newPixel(x, y) = oldPixel(width - 1 - x, height - 1 - y)
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            result[(height - 1 - y) * width + (width - 1 - x)] = pixelArray[y * width + x];
-        }
-    }
-
-    env->ReleaseIntArrayElements(pixels, pixelArray, 0);
-
-    jintArray resultArray = env->NewIntArray(length);
-    env->SetIntArrayRegion(resultArray, 0, length, result.data());
-    return resultArray;
-}
-
-extern "C"
-JNIEXPORT jintArray JNICALL
-Java_com_example_nativeimageprocessing_activities_EditActivity_rotate270(JNIEnv *env,
-                                                                         jobject /* this */,
-                                                                         jintArray pixels,
-                                                                         jint width,
-                                                                         jint height) {
-    jint *pixelArray = env->GetIntArrayElements(pixels, nullptr);
-    jint outputWidth = height;
-    jint outputHeight = width;
-    jint length = width * height;
-
-    std::vector<jint> result(outputWidth * outputHeight);
-
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            // pixel at (x,y) moves to (height - 1 - y, x)
-            int newX = height - 1 - y;
-            int newY = x;
-            result[newY * outputWidth + newX] = pixelArray[y * width + x];
-        }
-    }
-
-    env->ReleaseIntArrayElements(pixels, pixelArray, 0);
-
-    jintArray resultArray = env->NewIntArray(outputWidth * outputHeight);
-    env->SetIntArrayRegion(resultArray, 0, outputWidth * outputHeight, result.data());
-    return resultArray;
+    return result;
 }
