@@ -4,13 +4,16 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import android.view.View
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.createBitmap
 import androidx.core.net.toUri
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.nativeimageprocessing.Constants
 import com.example.nativeimageprocessing.FilterOption
+import com.example.nativeimageprocessing.R
 import com.example.nativeimageprocessing.adapters.FilterOptionsAdapter
 import com.example.nativeimageprocessing.databinding.ActivityEditBinding
 
@@ -31,6 +34,7 @@ class EditActivity : AppCompatActivity() {
         height: Int,
         brightnessValue: Int
     ): IntArray
+
     private external fun contrast(
         pixels: IntArray,
         width: Int,
@@ -38,6 +42,7 @@ class EditActivity : AppCompatActivity() {
         contrastValue: Int
     ): IntArray
 
+    private var activeSeekBarFilter: String? = null
 
     private lateinit var binding: ActivityEditBinding
     private lateinit var originalBitmap: Bitmap
@@ -46,17 +51,17 @@ class EditActivity : AppCompatActivity() {
     private lateinit var tempBitmap: Bitmap
 
     private val filterOptions = listOf(
-        FilterOption("grayscale", "Grayscale"),
-        FilterOption("invert", "Invert Colors"),
-        FilterOption("sepia", "Sepia Tone"),
-        FilterOption("brightness", "Brightness"),
-        FilterOption("contrast", "Contrast"),
-        FilterOption("blur", "Gaussian Blur"),
-        FilterOption("edge", "Edge Detection"),
-        FilterOption("rotate90", "Rotate 90°"),
-        FilterOption("rotate180", "Rotate 180°"),
-        FilterOption("rotate270", "Rotate 270°"),
-        FilterOption("crop", "Crop")
+        FilterOption(Constants.GRAYSCALE_ID, getString(R.string.grayscale)),
+        FilterOption(Constants.INVERT_ID, getString(R.string.invert_colors)),
+        FilterOption(Constants.SEPIA_ID, getString(R.string.sepia)),
+        FilterOption(Constants.BRIGHTNESS_ID, getString(R.string.brightness)),
+        FilterOption(Constants.CONTRAST_ID, getString(R.string.contrast)),
+        FilterOption(Constants.BLUR_ID, getString(R.string.blur)),
+        FilterOption(Constants.EDGE_ID, getString(R.string.edge_detection)),
+        FilterOption(Constants.ROTATE_90_ID, getString(R.string.rotate_90)),
+        FilterOption(Constants.ROTATE_180_ID, getString(R.string.rotate_180)),
+        FilterOption(Constants.ROTATE_270_ID, getString(R.string.rotate_270)),
+        FilterOption(Constants.CROP_ID, getString(R.string.crop))
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,7 +71,7 @@ class EditActivity : AppCompatActivity() {
 
         val imageUriString = intent.getStringExtra("imageUri")
         if (imageUriString == null) {
-            Toast.makeText(this, "No image selected", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.no_image_selected), Toast.LENGTH_SHORT).show()
             finish()
             return
         }
@@ -102,16 +107,36 @@ class EditActivity : AppCompatActivity() {
     }
 
     private fun resetUIAfterFilterApplied() {
-        binding.actionButtonsLayout.visibility = android.view.View.GONE
-        binding.brightnessSeekBar.visibility =
-            android.view.View.GONE // Hide the brightness slider
-        binding.brightnessSeekBar.setOnSeekBarChangeListener(null) // Remove listener
-        binding.brightnessSeekBar.progress = 100 // Reset brightness to default
+        binding.actionButtonsLayout.visibility = View.GONE
+
+        when (activeSeekBarFilter) {
+            Constants.BRIGHTNESS_ID -> {
+                binding.seekBar.visibility = View.GONE
+                binding.seekBar.setOnSeekBarChangeListener(null)
+                binding.seekBar.progress = 100
+            }
+
+            Constants.CONTRAST_ID -> {
+                binding.seekBar.visibility = View.GONE
+                binding.seekBar.setOnSeekBarChangeListener(null)
+                binding.seekBar.max = 510
+                binding.seekBar.progress = 255
+            }
+
+            else -> {
+                binding.seekBar.visibility = View.GONE
+                binding.seekBar.setOnSeekBarChangeListener(null)
+                binding.seekBar.progress = 100
+            }
+        }
+
+        activeSeekBarFilter = null
     }
 
     private fun loadBitmapFromUri(uri: Uri): Bitmap {
         val stream = contentResolver.openInputStream(uri)
-        return BitmapFactory.decodeStream(stream) ?: error("Failed to decode image")
+        return BitmapFactory.decodeStream(stream)
+            ?: error(getString(R.string.failed_to_decode_image))
     }
 
     private fun applyFilter(filterId: String) {
@@ -120,55 +145,99 @@ class EditActivity : AppCompatActivity() {
         val pixels = IntArray(width * height)
         currentBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
 
-        binding.brightnessSeekBar.visibility =
-            if (filterId == "brightness") android.view.View.VISIBLE else android.view.View.GONE
+        when (filterId) {
+            Constants.BRIGHTNESS_ID -> {
 
-        if (filterId == "brightness") {
-            // Initially apply brightness at 100 (normal)
-            val brightnessValue = binding.brightnessSeekBar.progress
-            val newPixels = brightness(pixels, width, height, brightnessValue)
-            tempBitmap = createBitmap(width, height)
-            tempBitmap.setPixels(newPixels, 0, width, 0, 0, width, height)
-            binding.imageView.setImageBitmap(tempBitmap)
-            binding.actionButtonsLayout.visibility = android.view.View.VISIBLE
+                activeSeekBarFilter = Constants.BRIGHTNESS_ID
 
-            // Add listener for SeekBar changes
-            binding.brightnessSeekBar.setOnSeekBarChangeListener(object :
-                SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(
-                    seekBar: SeekBar?,
-                    progress: Int,
-                    fromUser: Boolean
-                ) {
-                    val updatedPixels = brightness(pixels, width, height, progress)
-                    tempBitmap.setPixels(updatedPixels, 0, width, 0, 0, width, height)
-                    binding.imageView.setImageBitmap(tempBitmap)
-                }
+                binding.seekBar.visibility = View.VISIBLE
 
-                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-            })
-        } else {
-            // Remove listener if previously brightness
-            binding.brightnessSeekBar.setOnSeekBarChangeListener(null)
+                val brightnessValue = binding.seekBar.progress
+                val newPixels = brightness(pixels, width, height, brightnessValue)
+                tempBitmap = createBitmap(width, height)
+                tempBitmap.setPixels(newPixels, 0, width, 0, 0, width, height)
+                binding.imageView.setImageBitmap(tempBitmap)
+                binding.actionButtonsLayout.visibility = View.VISIBLE
 
-            val newPixels = when (filterId) {
-                "grayscale" -> convertToGrayscale(pixels, width, height)
-                "invert" -> invertColors(pixels, width, height)
-                "sepia" -> sepia(pixels, width, height)
-                // other filters ...
-                else -> {
-                    Toast.makeText(this, "Filter not implemented: $filterId", Toast.LENGTH_SHORT)
-                        .show()
-                    return
-                }
+                // Add listener for SeekBar changes
+                binding.seekBar.setOnSeekBarChangeListener(object :
+                    SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(
+                        seekBar: SeekBar?,
+                        progress: Int,
+                        fromUser: Boolean
+                    ) {
+                        val updatedPixels = brightness(pixels, width, height, progress)
+                        tempBitmap.setPixels(updatedPixels, 0, width, 0, 0, width, height)
+                        binding.imageView.setImageBitmap(tempBitmap)
+                    }
+
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+                })
             }
 
-            tempBitmap = createBitmap(width, height)
-            tempBitmap.setPixels(newPixels, 0, width, 0, 0, width, height)
+            Constants.CONTRAST_ID -> {
 
-            binding.imageView.setImageBitmap(tempBitmap)
-            binding.actionButtonsLayout.visibility = android.view.View.VISIBLE
+                activeSeekBarFilter = Constants.CONTRAST_ID
+
+                binding.seekBar.visibility = View.VISIBLE
+
+                binding.seekBar.max = 510 // to map from -255 to +255, for example
+                binding.seekBar.progress = 255 // default (no change)
+
+                val contrastValue = binding.seekBar.progress - 255 // map 0-510 to -255 to +255
+                val newPixels = contrast(pixels, width, height, contrastValue)
+                tempBitmap = createBitmap(width, height)
+                tempBitmap.setPixels(newPixels, 0, width, 0, 0, width, height)
+                binding.imageView.setImageBitmap(tempBitmap)
+                binding.actionButtonsLayout.visibility = View.VISIBLE
+
+                binding.seekBar.setOnSeekBarChangeListener(object :
+                    SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(
+                        seekBar: SeekBar?,
+                        progress: Int,
+                        fromUser: Boolean
+                    ) {
+                        val contrastVal = progress - 255
+                        val updatedPixels = contrast(pixels, width, height, contrastVal)
+                        tempBitmap.setPixels(updatedPixels, 0, width, 0, 0, width, height)
+                        binding.imageView.setImageBitmap(tempBitmap)
+                    }
+
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+                })
+            }
+
+            else -> {
+
+                binding.seekBar.visibility = View.GONE
+
+                binding.seekBar.setOnSeekBarChangeListener(null)
+
+                val newPixels = when (filterId) {
+                    Constants.GRAYSCALE_ID -> convertToGrayscale(pixels, width, height)
+                    Constants.INVERT_ID -> invertColors(pixels, width, height)
+                    Constants.SEPIA_ID -> sepia(pixels, width, height)
+                    // other filters ...
+                    else -> {
+                        Toast.makeText(
+                            this,
+                            getString(R.string.filter_not_implemented, filterId), Toast.LENGTH_SHORT
+                        )
+                            .show()
+                        return
+                    }
+                }
+
+                tempBitmap = createBitmap(width, height)
+                tempBitmap.setPixels(newPixels, 0, width, 0, 0, width, height)
+
+                binding.imageView.setImageBitmap(tempBitmap)
+                binding.actionButtonsLayout.visibility = View.VISIBLE
+            }
         }
     }
 
@@ -194,13 +263,23 @@ class EditActivity : AppCompatActivity() {
             resolver.openOutputStream(uri).use { outStream ->
                 if (outStream != null) {
                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, outStream)
-                    Toast.makeText(this, "Image exported to gallery.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this,
+                        getString(R.string.image_exported_to_gallery), Toast.LENGTH_SHORT
+                    ).show()
                 } else {
-                    Toast.makeText(this, "Failed to open output stream.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this,
+                        getString(R.string.failed_to_open_output_stream), Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         } else {
-            Toast.makeText(this, "Failed to create image file.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                this,
+                getString(R.string.failed_to_create_image_file),
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 

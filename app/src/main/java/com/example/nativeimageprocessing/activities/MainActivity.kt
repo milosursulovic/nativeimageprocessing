@@ -13,14 +13,13 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.example.nativeimageprocessing.R
 import com.example.nativeimageprocessing.databinding.ActivityMainBinding
 import com.example.nativeimageprocessing.utils.ImageUtils
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-
-    private var imageUri: Uri? = null
 
     // Permission launcher to request multiple permissions
     private val requestPermissionsLauncher = registerForActivityResult(
@@ -35,11 +34,11 @@ class MainActivity : AppCompatActivity() {
             }
 
         if (grantedCamera && grantedStorage) {
-            Toast.makeText(this, "Permissions granted", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.permissions_granted), Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(
                 this,
-                "Permissions denied. Cannot take or pick photos.",
+                getString(R.string.permissions_denied_cannot_take_or_pick_photos),
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -67,7 +66,7 @@ class MainActivity : AppCompatActivity() {
                 launchEditActivity(tempUri)
             }
         } else {
-            Toast.makeText(this, "Camera cancelled", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.camera_cancelled), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -83,7 +82,10 @@ class MainActivity : AppCompatActivity() {
             if (hasPermissions()) {
                 pickImageLauncher.launch("image/*")
             } else {
-                Toast.makeText(this, "Please grant permissions first", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this,
+                    getString(R.string.please_grant_permissions_first), Toast.LENGTH_SHORT
+                ).show()
                 checkAndRequestPermissions()
             }
         }
@@ -93,7 +95,11 @@ class MainActivity : AppCompatActivity() {
                 val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
                 takePhotoLauncher.launch(intent)
             } else {
-                Toast.makeText(this, "Please grant permissions first", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this,
+                    getString(R.string.please_grant_permissions_first),
+                    Toast.LENGTH_SHORT
+                ).show()
                 checkAndRequestPermissions()
             }
         }
