@@ -1,5 +1,11 @@
 #include <jni.h>
 #include <vector>
+#include <math.h>
+#include <stdint.h>
+
+#define RED(pixel) ((pixel >> 16) & 0xFF)
+#define GREEN(pixel) ((pixel >> 8) & 0xFF)
+#define BLUE(pixel) (pixel & 0xFF)
 
 extern "C"
 JNIEXPORT jintArray JNICALL
@@ -239,4 +245,75 @@ Java_com_example_nativeimageprocessing_activities_BlurActivity_blur(JNIEnv *env,
     jintArray resultArray = env->NewIntArray(size);
     env->SetIntArrayRegion(resultArray, 0, size, result.data());
     return resultArray;
+}
+
+extern "C"
+JNIEXPORT jintArray JNICALL
+Java_com_example_nativeimageprocessing_activities_EditActivity_edgeDetect(
+        JNIEnv *env, jobject thiz, jintArray pixels, jint width, jint height) {
+
+    jint *inputPixels = env->GetIntArrayElements(pixels, nullptr);
+    jintArray result = env->NewIntArray(width * height);
+    jint *outputPixels = new jint[width * height];
+
+    // Convert to grayscale first
+    uint8_t *gray = new uint8_t[width * height];
+    for (int i = 0; i < width * height; i++) {
+        int r = RED(inputPixels[i]);
+        int g = GREEN(inputPixels[i]);
+        int b = BLUE(inputPixels[i]);
+        gray[i] = (uint8_t)(0.3 * r + 0.59 * g + 0.11 * b); // Luma conversion
+    }
+
+    // Sobel kernels
+    int gx[3][3] = {
+            {-1, 0, 1},
+            {-2, 0, 2},
+            {-1, 0, 1}
+    };
+    int gy[3][3] = {
+            {-1, -2, -1},
+            { 0,  0,  0},
+            { 1,  2,  1}
+    };
+
+    // Apply Sobel operator
+    for (int y = 1; y < height - 1; y++) {
+        for (int x = 1; x < width - 1; x++) {
+            int sumX = 0;
+            int sumY = 0;
+
+            for (int ky = -1; ky <= 1; ky++) {
+                for (int kx = -1; kx <= 1; kx++) {
+                    int val = gray[(y + ky) * width + (x + kx)];
+                    sumX += gx[ky + 1][kx + 1] * val;
+                    sumY += gy[ky + 1][kx + 1] * val;
+                }
+            }
+
+            int magnitude = (int) sqrt(sumX * sumX + sumY * sumY);
+            if (magnitude > 255) magnitude = 255;
+
+            int color = (0xFF << 24) | (magnitude << 16) | (magnitude << 8) | magnitude;
+            outputPixels[y * width + x] = color;
+        }
+    }
+
+    // Fill borders with black
+    for (int x = 0; x < width; x++) {
+        outputPixels[x] = 0xFF000000;
+        outputPixels[(height - 1) * width + x] = 0xFF000000;
+    }
+    for (int y = 0; y < height; y++) {
+        outputPixels[y * width] = 0xFF000000;
+        outputPixels[y * width + (width - 1)] = 0xFF000000;
+    }
+
+    env->SetIntArrayRegion(result, 0, width * height, outputPixels);
+    env->ReleaseIntArrayElements(pixels, inputPixels, 0);
+
+    delete[] gray;
+    delete[] outputPixels;
+
+    return result;
 }

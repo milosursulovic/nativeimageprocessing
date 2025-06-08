@@ -31,6 +31,7 @@ class EditActivity : AppCompatActivity() {
     private external fun convertToGrayscale(pixels: IntArray, width: Int, height: Int): IntArray
     private external fun invertColors(pixels: IntArray, width: Int, height: Int): IntArray
     private external fun sepia(pixels: IntArray, width: Int, height: Int): IntArray
+    private external fun edgeDetect(pixels: IntArray, width: Int, height: Int): IntArray
 
     private lateinit var binding: ActivityEditBinding
     private lateinit var originalBitmap: Bitmap
@@ -82,10 +83,12 @@ class EditActivity : AppCompatActivity() {
         binding.btnSave.setOnClickListener {
             currentBitmap = tempBitmap.copy(Bitmap.Config.ARGB_8888, true)
             binding.imageView.setImageBitmap(currentBitmap)
+            binding.actionButtonsLayout.visibility = View.GONE
         }
 
         binding.btnCancel.setOnClickListener {
             binding.imageView.setImageBitmap(currentBitmap) // revert to currentBitmap (unchanged)
+            binding.actionButtonsLayout.visibility = View.GONE
         }
 
 
@@ -114,17 +117,15 @@ class EditActivity : AppCompatActivity() {
                 openBrightnessActivity()
                 return
             }
-
             Constants.CONTRAST_ID -> {
                 openContrastActivity()
                 return
             }
-
             Constants.BLUR_ID -> {
                 openBlurActivity()
                 return
             }
-
+            Constants.EDGE_ID -> edgeDetect(pixels, width, height)
             else -> {
                 Toast.makeText(
                     this,
