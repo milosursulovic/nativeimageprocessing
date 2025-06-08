@@ -317,3 +317,90 @@ Java_com_example_nativeimageprocessing_activities_EditActivity_edgeDetect(
 
     return result;
 }
+
+extern "C"
+JNIEXPORT jintArray JNICALL
+Java_com_example_nativeimageprocessing_activities_EditActivity_rotate90(JNIEnv *env,
+                                                                        jobject /* this */,
+                                                                        jintArray pixels,
+                                                                        jint width,
+                                                                        jint height) {
+    jint *pixelArray = env->GetIntArrayElements(pixels, nullptr);
+    jint outputWidth = height;
+    jint outputHeight = width;
+    jint length = width * height;
+
+    std::vector<jint> result(outputWidth * outputHeight);
+
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            // pixel at (x,y) moves to (y, width - 1 - x)
+            int newX = y;
+            int newY = width - 1 - x;
+            result[newY * outputWidth + newX] = pixelArray[y * width + x];
+        }
+    }
+
+    env->ReleaseIntArrayElements(pixels, pixelArray, 0);
+
+    jintArray resultArray = env->NewIntArray(outputWidth * outputHeight);
+    env->SetIntArrayRegion(resultArray, 0, outputWidth * outputHeight, result.data());
+    return resultArray;
+}
+
+extern "C"
+JNIEXPORT jintArray JNICALL
+Java_com_example_nativeimageprocessing_activities_EditActivity_rotate180(JNIEnv *env,
+                                                                         jobject /* this */,
+                                                                         jintArray pixels,
+                                                                         jint width,
+                                                                         jint height) {
+    jint *pixelArray = env->GetIntArrayElements(pixels, nullptr);
+    int length = width * height;
+
+    std::vector<jint> result(length);
+
+    // Rotate 180 degrees:
+    // newPixel(x, y) = oldPixel(width - 1 - x, height - 1 - y)
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            result[(height - 1 - y) * width + (width - 1 - x)] = pixelArray[y * width + x];
+        }
+    }
+
+    env->ReleaseIntArrayElements(pixels, pixelArray, 0);
+
+    jintArray resultArray = env->NewIntArray(length);
+    env->SetIntArrayRegion(resultArray, 0, length, result.data());
+    return resultArray;
+}
+
+extern "C"
+JNIEXPORT jintArray JNICALL
+Java_com_example_nativeimageprocessing_activities_EditActivity_rotate270(JNIEnv *env,
+                                                                         jobject /* this */,
+                                                                         jintArray pixels,
+                                                                         jint width,
+                                                                         jint height) {
+    jint *pixelArray = env->GetIntArrayElements(pixels, nullptr);
+    jint outputWidth = height;
+    jint outputHeight = width;
+    jint length = width * height;
+
+    std::vector<jint> result(outputWidth * outputHeight);
+
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            // pixel at (x,y) moves to (height - 1 - y, x)
+            int newX = height - 1 - y;
+            int newY = x;
+            result[newY * outputWidth + newX] = pixelArray[y * width + x];
+        }
+    }
+
+    env->ReleaseIntArrayElements(pixels, pixelArray, 0);
+
+    jintArray resultArray = env->NewIntArray(outputWidth * outputHeight);
+    env->SetIntArrayRegion(resultArray, 0, outputWidth * outputHeight, result.data());
+    return resultArray;
+}

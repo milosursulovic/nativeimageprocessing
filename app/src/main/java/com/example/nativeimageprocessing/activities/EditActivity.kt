@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.graphics.createBitmap
@@ -32,6 +33,9 @@ class EditActivity : AppCompatActivity() {
     private external fun invertColors(pixels: IntArray, width: Int, height: Int): IntArray
     private external fun sepia(pixels: IntArray, width: Int, height: Int): IntArray
     private external fun edgeDetect(pixels: IntArray, width: Int, height: Int): IntArray
+    private external fun rotate90(pixels: IntArray, width: Int, height: Int): IntArray
+    private external fun rotate180(pixels: IntArray, width: Int, height: Int): IntArray
+    private external fun rotate270(pixels: IntArray, width: Int, height: Int): IntArray
 
     private lateinit var binding: ActivityEditBinding
     private lateinit var originalBitmap: Bitmap
@@ -104,49 +108,88 @@ class EditActivity : AppCompatActivity() {
     }
 
     private fun applyFilter(filterId: String) {
-        val width = currentBitmap.width
-        val height = currentBitmap.height
+        var width = currentBitmap.width
+        var height = currentBitmap.height
         val pixels = IntArray(width * height)
         currentBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
 
-        val newPixels = when (filterId) {
-            Constants.GRAYSCALE_ID -> convertToGrayscale(pixels, width, height)
-            Constants.INVERT_ID -> invertColors(pixels, width, height)
-            Constants.SEPIA_ID -> sepia(pixels, width, height)
+        val newPixels: IntArray
+        val newWidth: Int
+        val newHeight: Int
+
+        when (filterId) {
+            Constants.GRAYSCALE_ID -> {
+                newPixels = convertToGrayscale(pixels, width, height)
+                newWidth = width
+                newHeight = height
+            }
+            Constants.INVERT_ID -> {
+                newPixels = invertColors(pixels, width, height)
+                newWidth = width
+                newHeight = height
+            }
+            Constants.SEPIA_ID -> {
+                newPixels = sepia(pixels, width, height)
+                newWidth = width
+                newHeight = height
+            }
             Constants.BRIGHTNESS_ID -> {
-                openBrightnessActivity()
+                openImageEditingActivity(BrightnessActivity::class.java, activityLauncher)
                 return
             }
-
             Constants.CONTRAST_ID -> {
-                openContrastActivity()
+                openImageEditingActivity(ContrastActivity::class.java, activityLauncher)
                 return
             }
-
             Constants.BLUR_ID -> {
-                openBlurActivity()
+                openImageEditingActivity(BlurActivity::class.java, activityLauncher)
                 return
             }
-
-            Constants.EDGE_ID -> edgeDetect(pixels, width, height)
+            Constants.EDGE_ID -> {
+                newPixels = edgeDetect(pixels, width, height)
+                newWidth = width
+                newHeight = height
+            }
+            Constants.ROTATE_90_ID -> {
+                newPixels = rotate90(pixels, width, height)
+                // swap width & height for 90°
+                newWidth = height
+                newHeight = width
+            }
+            Constants.ROTATE_180_ID -> {
+                newPixels = rotate180(pixels, width, height)
+                newWidth = width
+                newHeight = height
+            }
+            Constants.ROTATE_270_ID -> {
+                newPixels = rotate270(pixels, width, height)
+                // swap width & height for 270°
+                newWidth = height
+                newHeight = width
+            }
             else -> {
                 Toast.makeText(
                     this,
-                    getString(R.string.filter_not_implemented, filterId), Toast.LENGTH_SHORT
-                )
-                    .show()
+                    getString(R.string.filter_not_implemented), Toast.LENGTH_SHORT
+                ).show()
                 return
             }
         }
 
-        tempBitmap = createBitmap(width, height)
-        tempBitmap.setPixels(newPixels, 0, width, 0, 0, width, height)
+        tempBitmap = createBitmap(newWidth, newHeight)
+        tempBitmap.setPixels(newPixels, 0, newWidth, 0, 0, newWidth, newHeight)
+
+        // Update ImageView layout params to fit the new bitmap dimensions
+        binding.imageView.layoutParams = binding.imageView.layoutParams.apply {
+            width = newWidth
+            height = newHeight
+        }
 
         binding.imageView.setImageBitmap(tempBitmap)
         binding.actionButtonsLayout.visibility = View.VISIBLE
     }
 
-    private val brightnessLauncher = registerForActivityResult(
+    private val activityLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == RESULT_OK) {
@@ -160,54 +203,14 @@ class EditActivity : AppCompatActivity() {
         }
     }
 
-    private val contrastLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val imageUriString = result.data?.getStringExtra(Constants.RESULT_IMAGE_URI)
-            if (imageUriString != null) {
-                val newUri = imageUriString.toUri()
-                val bitmap = loadBitmapFromUri(newUri)
-                currentBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
-                binding.imageView.setImageBitmap(currentBitmap)
-            }
-        }
-    }
-
-    private val blurLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val imageUriString = result.data?.getStringExtra(Constants.RESULT_IMAGE_URI)
-            if (imageUriString != null) {
-                val newUri = imageUriString.toUri()
-                val bitmap = loadBitmapFromUri(newUri)
-                currentBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, true)
-                binding.imageView.setImageBitmap(currentBitmap)
-            }
-        }
-    }
-
-    private fun openBrightnessActivity() {
-        val intent = Intent(this, BrightnessActivity::class.java)
-        // pass current image uri - you may want to cache currentBitmap to a file first
+    private fun <T> openImageEditingActivity(
+        activityClass: Class<T>,
+        launcher: ActivityResultLauncher<Intent>
+    ) {
+        val intent = Intent(this, activityClass)
         val uri = saveBitmapToCache(currentBitmap)
         intent.putExtra(Constants.EXTRA_IMAGE_URI, uri.toString())
-        brightnessLauncher.launch(intent)
-    }
-
-    private fun openContrastActivity() {
-        val intent = Intent(this, ContrastActivity::class.java)
-        val uri = saveBitmapToCache(currentBitmap)
-        intent.putExtra(Constants.EXTRA_IMAGE_URI, uri.toString())
-        contrastLauncher.launch(intent)
-    }
-
-    private fun openBlurActivity() {
-        val intent = Intent(this, BlurActivity::class.java)
-        val uri = saveBitmapToCache(currentBitmap)
-        intent.putExtra(Constants.EXTRA_IMAGE_URI, uri.toString())
-        blurLauncher.launch(intent)
+        launcher.launch(intent)
     }
 
     private fun saveBitmapToCache(bitmap: Bitmap): Uri {
