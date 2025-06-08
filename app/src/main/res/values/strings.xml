@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Native Image Processing</string>
+    <string name="take_photo">Take Photo</string>
+    <string name="pick_from_gallery">Pick from Gallery</string>
+    <string name="selected_image">Selected Image</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="export_image">Export Image</string>
+</resources>
