@@ -19,7 +19,7 @@
     <string name="crop">Crop</string>
     <string name="no_image_selected">No image selected</string>
     <string name="failed_to_decode_image">Failed to decode image</string>
-    <string name="filter_not_implemented">Filter not implemented: %1$s</string>
+    <string name="filter_not_implemented">Filter not implemented</string>
     <string name="image_exported_to_gallery">Image exported to gallery.</string>
     <string name="failed_to_open_output_stream">Failed to open output stream.</string>
     <string name="failed_to_create_image_file">Failed to create image file.</string>
@@ -28,5 +28,5 @@
     <string name="camera_cancelled">Camera cancelled</string>
     <string name="please_grant_permissions_first">Please grant permissions first</string>
     <string name="no_image_uri_passed">No image URI passed</string>
-    <string name="failed_to_capture_image">Failed to caputre image</string>
+    <string name="failed_to_capture_image">Failed to capture image</string>
 </resources>
