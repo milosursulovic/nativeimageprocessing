@@ -190,6 +190,9 @@ class EditActivity : AppCompatActivity() {
             }
         }
 
+        if (::tempBitmap.isInitialized && !tempBitmap.isRecycled) {
+            tempBitmap.recycle()
+        }
         tempBitmap = createBitmap(newWidth, newHeight)
         tempBitmap.setPixels(newPixels, 0, newWidth, 0, 0, newWidth, newHeight)
 
