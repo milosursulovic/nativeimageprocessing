@@ -13,6 +13,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import com.example.nativeimageprocessing.R
 import com.example.nativeimageprocessing.databinding.ActivityMainBinding
 import com.example.nativeimageprocessing.utils.ImageUtils
@@ -20,6 +21,8 @@ import com.example.nativeimageprocessing.utils.ImageUtils
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+
+    private var photoUri: Uri? = null  // Holds URI for full-res photo
 
     // Permission launcher to request multiple permissions
     private val requestPermissionsLauncher = registerForActivityResult(
@@ -59,11 +62,15 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            val data = result.data
-            val bitmap = data?.extras?.get("data") as? android.graphics.Bitmap
-            bitmap?.let {
-                val tempUri = ImageUtils.saveBitmapToCache(this, it)
-                launchEditActivity(tempUri)
+            photoUri?.let { uri ->
+                // Load bitmap from the full-size photo URI
+                launchEditActivity(uri)
+            } ?: run {
+                Toast.makeText(
+                    this,
+                    getString(R.string.failed_to_capture_image),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         } else {
             Toast.makeText(this, getString(R.string.camera_cancelled), Toast.LENGTH_SHORT).show()
@@ -93,7 +100,16 @@ class MainActivity : AppCompatActivity() {
         binding.takePhotoButton.setOnClickListener {
             if (hasPermissions()) {
                 val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-                takePhotoLauncher.launch(intent)
+                // Create a file and URI for full resolution image
+                photoUri = createImageUri()
+                photoUri?.let { uri ->
+                    intent.putExtra(MediaStore.EXTRA_OUTPUT, uri)
+                    takePhotoLauncher.launch(intent)
+                } ?: Toast.makeText(
+                    this,
+                    getString(R.string.failed_to_create_image_file),
+                    Toast.LENGTH_SHORT
+                ).show()
             } else {
                 Toast.makeText(
                     this,
@@ -102,6 +118,16 @@ class MainActivity : AppCompatActivity() {
                 ).show()
                 checkAndRequestPermissions()
             }
+        }
+    }
+
+    private fun createImageUri(): Uri? {
+        return try {
+            val imageFile = ImageUtils.createImageFile(this)
+            FileProvider.getUriForFile(this, "${packageName}.fileprovider", imageFile)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
     }
 

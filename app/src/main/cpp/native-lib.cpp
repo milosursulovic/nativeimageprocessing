@@ -262,7 +262,7 @@ Java_com_example_nativeimageprocessing_activities_EditActivity_edgeDetect(
         int r = RED(inputPixels[i]);
         int g = GREEN(inputPixels[i]);
         int b = BLUE(inputPixels[i]);
-        gray[i] = (uint8_t)(0.3 * r + 0.59 * g + 0.11 * b); // Luma conversion
+        gray[i] = (uint8_t) (0.3 * r + 0.59 * g + 0.11 * b); // Luma conversion
     }
 
     // Sobel kernels
@@ -273,8 +273,8 @@ Java_com_example_nativeimageprocessing_activities_EditActivity_edgeDetect(
     };
     int gy[3][3] = {
             {-1, -2, -1},
-            { 0,  0,  0},
-            { 1,  2,  1}
+            {0,  0,  0},
+            {1,  2,  1}
     };
 
     // Apply Sobel operator

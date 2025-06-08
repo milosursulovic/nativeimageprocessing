@@ -117,14 +117,17 @@ class EditActivity : AppCompatActivity() {
                 openBrightnessActivity()
                 return
             }
+
             Constants.CONTRAST_ID -> {
                 openContrastActivity()
                 return
             }
+
             Constants.BLUR_ID -> {
                 openBlurActivity()
                 return
             }
+
             Constants.EDGE_ID -> edgeDetect(pixels, width, height)
             else -> {
                 Toast.makeText(
